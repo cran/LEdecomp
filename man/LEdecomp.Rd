@@ -15,13 +15,16 @@ LEdecomp(
   sex2 = sex1,
   method = c("lifetable", "arriaga", "arriaga_sym", "sen_arriaga", "sen_arriaga_sym",
     "sen_arriaga_inst", "sen_arriaga_inst2", "sen_arriaga_sym_inst",
-    "sen_arriaga_sym_inst2", "chandrasekaran_ii", "sen_chandrasekaran_ii",
+    "sen_arriaga_sym_inst2", "andreev", "andreev_sym", "sen_andreev", "sen_andreev_sym",
+    "sen_andreev_inst", "sen_andreev_inst2", "sen_andreev_sym_inst",
+    "sen_andreev_sym_inst2", "chandrasekaran_ii", "sen_chandrasekaran_ii",
     "sen_chandrasekaran_ii_inst", "sen_chandrasekaran_ii_inst2", "chandrasekaran_iii",
-    "sen_chandrasekaran_iii", "sen_chandrasekaran_iii_inst",
+    "sen_chandrasekaran_iii", "sen_chandrasekaran_iii_inst", 
+    
     "sen_chandrasekaran_iii_inst2", "lopez_ruzicka", "lopez_ruzicka_sym",
     "sen_lopez_ruzicka", "sen_lopez_ruzicka_sym", "sen_lopez_ruzicka_inst",
-    "sen_lopez_ruzicka_inst2", 
-     "horiuchi", "stepwise", "numerical"),
+    "sen_lopez_ruzicka_inst2", "sen_lopez_ruzicka_sym_inst",
+    "sen_lopez_ruzicka_sym_inst2", "horiuchi", "stepwise", "numerical"),
   closeout = TRUE,
   opt = TRUE,
   tol = 1e-10,
@@ -37,9 +40,9 @@ LEdecomp(
 
 \item{mx2}{numeric. Age-structured mortality rates for population 2 (same shape as \code{mx1}).}
 
-\item{age}{integer. Lower bound of each age group. If \code{NULL}, it will be inferred from data (see Details).}
+\item{age}{numeric Lower bound of each age group. If \code{NULL}, it will be inferred from data (see Details).}
 
-\item{nx}{integer vector of age intervals (defaults to 1 when missing).}
+\item{nx}{numeric vector of age intervals (defaults to 1 when missing).}
 
 \item{n_causes}{integer or \code{NULL}. If provided with stacked vectors, forces the number of causes (columns).}
 
@@ -53,8 +56,7 @@ LEdecomp(
 
 \item{closeout}{logical. Close out at top age (\code{TRUE}) or assume closed final age group (\code{FALSE}).}
 
-\item{opt}{logical. For lifetable, numerical, and instantaneous sensitivity-based methods, optimize rate averaging
-to eliminate the decomposition residual?}
+\item{opt}{logical. For lifetable, numerical, and instantaneous sensitivity-based methods, optimize rate averaging to eliminate the decomposition residual?}
 
 \item{tol}{numeric. Tolerance for rate-averaging optimization.}
 
@@ -225,6 +227,7 @@ available_methods()
 \insertRef{preston2000demography}{LEdecomp}
 \insertRef{Ponnapalli2005}{LEdecomp}
 \insertRef{horiuchi2008decomposition}{LEdecomp}
+\insertRef{andreev1982}{LEdecomp}
 \insertRef{andreev2002algorithm}{LEdecomp}
 }
 \seealso{

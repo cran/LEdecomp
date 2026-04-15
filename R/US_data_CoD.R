@@ -8,20 +8,22 @@
 #'
 #' @name US_data_CoD
 #'
-#' @format A data frame with 80598 rows and 8 columns with class \code{"LEdecompData"} and \code{"data.frame"} including the following information
-#' * `Age` a vector containing the ages considered in the dataset, 0, 1, ..., 99, and 100.
-#' * `Gender` a vector containing the information regarding the gender, \code{"Male"} or \code{"Female"}.
-#' * `Period` a vector containing the periods of the dataset from 2000 to 2020.
-#' * `Ext` a vector containing the size of the population at risk of death by age and period.
-#' * `Dxt` a vector containing the number of registered deaths by age and period.
-#' * `mxt` a vector mortality rates for the corresponding age and period.
-#' * `cause` a vector containing a brief summary of the corresponding cause of death.
-#' * `cause_id` a vector containing the corresponding identification number for the cause of death.
+#' @format A data frame of of mortality rates by age, year, sex, and cause with 76356 rows and 6 columns, including the following columns. Cause of death fractions were derived from NCHS data, and constrained to HMD lifetable mx:
+#' * `year` numeric. Years 2000 to 2020.
+#' * `sex` character. Values `"Male"` or `"Female"`.
+#' * `age` integer. Values 0, 1, ..., 99, and 100.
+#' * `cause` character. A brief summary of the corresponding cause family.
+#' * `cause_id` character. The ICD10 code range covered by this cause of death.
+#' * `cause_short` character. A short name for each cause, useful for plotting. Includes codes in parentheses.
+#' * `mxc` numeric. Mortality rates for the corresponding age, year, sex, and cause.
 #' @docType data
 #' @usage US_data_CoD
-#'
+#' @references
+#'   \insertRef{hmd2026}{LEdecomp}
+#'   \insertRef{cdcwonder2024}{LEdecomp}
 #' @examples
-#' #The dataset is executed with the following information
+#' #The dataset is loaded by simply executing:
 #' US_data_CoD
 #'
 "US_data_CoD"
+

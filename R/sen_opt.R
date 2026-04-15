@@ -1,15 +1,16 @@
 
 #' @title sen_resid
-#' @description Most sensitivity methods in this packages (`sen_arriaga_sym()` excepted) are approximations; when used in decompositions they will tend to imply residuals. To acheive near-exact additivity for a decomposition using these sensitivity approaches, one can try to find a different weighting of rates from populations 1 and 2, rather than simply taking their arithmetic average. Here we turn this into an optimization problem, where we find the weighting `w` that implies an exactly additive decomposition to an arbitrary degree of tolerance. This function gives said residual, for purposes of optimizing using `sen_min()`. We export this auxiliary function because one might wish to know the value w that balances rates such that the decomposition is exact.
+#' @description Most sensitivity methods in this packages (`sen_arriaga_sym()` excepted) are approximations; when used in decompositions they will tend to imply residuals. To achieve near-exact additivity for a decomposition using these sensitivity approaches, one can try to find a different weighting of rates from populations 1 and 2, rather than simply taking their arithmetic average. Here we turn this into an optimization problem, where we find the weighting `w` that implies an exactly additive decomposition to an arbitrary degree of tolerance. This function gives said residual, for purposes of optimizing using `sen_min()`. We export this auxiliary function because one might wish to know the value w that balances rates such that the decomposition is exact.
 #' \deqn{m_{x} = m_{x}^{1} * w + m_{x}^{2} * (1-w)}
 #' @inheritParams arriaga
 #' @param w the parameter weight to optimize, default 0.5
 #' @param sen_fun function name, current options include `sen_e0_mx_lt`,
 #' `sen_arriaga_instantaneous`, `sen_arriaga_instantaneous2`,
-#' `sen_arriaga_sym`, `sen_num`,`sen_chandrasekaran_II_instantaneous`
+#' `sen_arriaga_sym`, `sen_arriaga_sym_instantaneous`, `sen_arriaga_sym_instantaneous2`,`sen_num`,`sen_chandrasekaran_II_instantaneous`
 #' ,`sen_chandrasekaran_ii_instantaneous2`,`sen_chandrasekaran_iii_instantaneous`,
 #'  `sen_chandrasekaran_iii_instantaneous2`,`sen_lopez_ruzicka_instantaneous`,
-#'  `sen_lopez_ruzicka_instantaneous2`
+#'  `sen_lopez_ruzicka_instantaneous2`, `sen_lopez_ruzicka_sym_instantaneous`,
+#'  `sen_lopez_ruzicka_sym_instantaneous2`, `sen_andreev_instantaneous`, `sen_andreev_instantaneous2` , `sen_andreev_sym_instantaneous`, `sen_andreev_sym_instantaneous2`
 #' @param ... optional arguments passed to a given sensitivity function.
 #' @return age-specific sensitivity of life expectancy to changes in mortality rates.
 #' @export
@@ -65,7 +66,7 @@ sen_resid <- function(w=.5,
 }
 
 #' @title sen_min
-#' @description Most sensitivity methods in this packages (`sen_arriaga_sym()` excepted) are approximations; when used in decompositions they will tend to imply residuals. To acheive near-exact additivity for a decomposition using these sensitivity approaches, one can try to find a different weighting of rates from populations 1 and 2, rather than simply taking their arithmetic average. Here we turn this into an optimization problem, where we find the weighting `w` that implies an exactly additive decomposition to an arbitrary degree of tolerance.
+#' @description Most sensitivity methods in this packages (`sen_arriaga_sym()` excepted) are approximations; when used in decompositions they will tend to imply residuals. To achieve near-exact additivity for a decomposition using these sensitivity approaches, one can try to find a different weighting of rates from populations 1 and 2, rather than simply taking their arithmetic average. Here we turn this into an optimization problem, where we find the weighting `w` that implies an exactly additive decomposition to an arbitrary degree of tolerance.
 #' \deqn{m_{x} = m_{x}^{1} * w + m_{x}^{2} * (1-w)}
 #' @details We expect the value `w` to be close to .5, and only search the interval `[.4,.6]`. This may need to be revisited in case that proves too narrow.
 #' @inheritParams arriaga

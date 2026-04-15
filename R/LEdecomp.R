@@ -3,16 +3,15 @@
 #'
 #' @param mx1 numeric. Age-structured mortality rates for population 1 (vector, matrix, or data.frame). See Details section for more info.
 #' @param mx2 numeric. Age-structured mortality rates for population 2 (same shape as `mx1`).
-#' @param age integer. Lower bound of each age group. If `NULL`, it will be inferred from data (see Details).
-#' @param nx integer vector of age intervals (defaults to 1 when missing).
+#' @param age numeric Lower bound of each age group. If `NULL`, it will be inferred from data (see Details).
+#' @param nx numeric vector of age intervals (defaults to 1 when missing).
 #' @param n_causes integer or `NULL`. If provided with stacked vectors, forces the number of causes (columns).
 #' @param cause_names optional character vector of length `n_causes` giving labels for causes. Alternatively detected from `colnames(mx1)` in case given as a `matrix` or `data.frame`
 #' @param sex1 character. `"m"`,`"f"`, or `"t"`, affects a0 treatment.
 #' @param sex2 character. `"m"`,`"f"`, or `"t"`, affects a0 treatment.
 #' @param method character. One of the methods in `method_registry$method`.
 #' @param closeout logical. Close out at top age (`TRUE`) or assume closed final age group (`FALSE`).
-#' @param opt logical. For lifetable, numerical, and instantaneous sensitivity-based methods, optimize rate averaging
-#'   to eliminate the decomposition residual?
+#' @param opt logical. For lifetable, numerical, and instantaneous sensitivity-based methods, optimize rate averaging to eliminate the decomposition residual?
 #' @param tol numeric. Tolerance for rate-averaging optimization.
 #' @param Num_Intervals integer. For methods that discretize an integral (e.g., Horiuchi).
 #' @param symmetrical logical. For stepwise replacement only: average 1 to 2 and 2 to 1?
@@ -72,6 +71,7 @@
 #' \insertRef{preston2000demography}{LEdecomp}
 #' \insertRef{Ponnapalli2005}{LEdecomp}
 #' \insertRef{horiuchi2008decomposition}{LEdecomp}
+#' \insertRef{andreev1982}{LEdecomp}
 #' \insertRef{andreev2002algorithm}{LEdecomp}
 #'
 #' @importFrom DemoDecomp horiuchi
@@ -192,6 +192,10 @@ LEdecomp <- function(mx1,
                                 "sen_arriaga", "sen_arriaga_sym",
                                 "sen_arriaga_inst", "sen_arriaga_inst2",
                                 "sen_arriaga_sym_inst", "sen_arriaga_sym_inst2",
+                                "andreev", "andreev_sym",
+                                "sen_andreev", "sen_andreev_sym",
+                                "sen_andreev_inst", "sen_andreev_inst2",
+                                "sen_andreev_sym_inst", "sen_andreev_sym_inst2",
                                 "chandrasekaran_ii",
                                 "sen_chandrasekaran_ii", "sen_chandrasekaran_ii_inst",
                                 "sen_chandrasekaran_ii_inst2",
@@ -201,6 +205,7 @@ LEdecomp <- function(mx1,
                                 "lopez_ruzicka", "lopez_ruzicka_sym",
                                 "sen_lopez_ruzicka", "sen_lopez_ruzicka_sym",
                                 "sen_lopez_ruzicka_inst", "sen_lopez_ruzicka_inst2",
+                                "sen_lopez_ruzicka_sym_inst", "sen_lopez_ruzicka_sym_inst2",
                                 "horiuchi", "stepwise", "numerical"),
                      closeout = TRUE,
                      opt = TRUE,
@@ -218,6 +223,13 @@ LEdecomp <- function(mx1,
     stop("Arguments 'mx1' and 'mx2' must have the same length (prior to shaping).")
   }
 
+  # ---- tidyverse robustness: treat n×1 matrices as vectors ----
+  if (is.matrix(mx1) && ncol(mx1) == 1L) mx1 <- drop(mx1)
+  if (is.matrix(mx2) && ncol(mx2) == 1L) mx2 <- drop(mx2)
+
+  # also handle 1-col data frames (can appear as tibble columns)
+  if (is.data.frame(mx1) && ncol(mx1) == 1L) mx1 <- mx1[[1]]
+  if (is.data.frame(mx2) && ncol(mx2) == 1L) mx2 <- mx2[[1]]
   # normalize shapes and ages
   norm <- normalize_inputs(mx1 = mx1, mx2 = mx2, age = age, n_causes = n_causes)
   mx1        <- norm$mx1
@@ -264,18 +276,20 @@ LEdecomp <- function(mx1,
 
   # handle sex1 != sex2 by recursion
   if (sex1 != sex2) {
-    d1 <- LEdecomp(mx1 = mx1, mx2 = mx2, age = age, nx = nx,
+    mx1_in <- norm$mx1_orig
+    mx2_in <- norm$mx2_orig
+    d1 <- LEdecomp(mx1 = mx1_in, mx2 = mx2_in, age = age, nx = nx,
                    sex1 = sex1, sex2 = sex1,
                    method = method, closeout = closeout, opt = opt, tol = tol,
                    Num_Intervals = Num_Intervals, symmetrical = symmetrical,
                    direction = direction, perturb = perturb, ...)
-    d2 <- LEdecomp(mx1 = mx1, mx2 = mx2, age = age, nx = nx,
+    d2 <- LEdecomp(mx1 = mx1_in, mx2 = mx2_in, age = age, nx = nx,
                    sex1 = sex2, sex2 = sex2,
                    method = method, closeout = closeout, opt = opt, tol = tol,
                    Num_Intervals = Num_Intervals, symmetrical = symmetrical,
                    direction = direction, perturb = perturb, ...)
     decomp <- (d1$LEdecomp + d2$LEdecomp) / 2
-    sens   <- (d1$sens      + d2$sens)      / 2
+    sens   <- (d1$sens     + d2$sens)     / 2
 
     LE2 <- mx_to_e0(rowSums(as.matrix(mx2)), age = age, nx = nx, sex = sex1, closeout = closeout)
     LE1 <- mx_to_e0(rowSums(as.matrix(mx1)), age = age, nx = nx, sex = sex1, closeout = closeout)
@@ -397,13 +411,22 @@ LEdecomp <- function(mx1,
     } else {
       delta <- mx2 - mx1
       if (opt) {
-        sens <- sen_min(mx1 = mx1, mx2 = mx2,
-                        age = age, nx = nx, sex1 = sex1, sex2 = sex1,
-                        closeout = closeout, sen_fun = dec_fun, tol = tol)
+        sens <- sen_min(mx1 = mx1,
+                        mx2 = mx2,
+                        age = age,
+                        nx = nx,
+                        sex1 = sex1,
+                        sex2 = sex1,
+                        closeout = closeout,
+                        sen_fun = dec_fun,
+                        tol = tol)
       } else {
         mx_avg <- (mx1 + mx2) / 2
         sens   <- dec_fun(mx = mx_avg,
-                          age = age, nx = nx, sex = sex1, closeout = closeout)
+                          age = age,
+                          nx = nx,
+                          sex = sex1,
+                          closeout = closeout)
       }
       decomp <- sens * delta
     }
@@ -443,24 +466,22 @@ LEdecomp <- function(mx1,
   LE2 <- mx_to_e0(rowSums(as.matrix(mx2)), age = age, nx = nx, sex = sex1, closeout = closeout)
   LE1 <- mx_to_e0(rowSums(as.matrix(mx1)), age = age, nx = nx, sex = sex1, closeout = closeout)
 
-  # restore input-like shapes for decomp, but KEEP sens as vector
-  shape_policy <- norm$return_as %||% {
-    if (is.matrix(mx1)) "matrix" else if (!is.null(n_causes) && n_causes > 1L) "stacked_vector" else "vector"
-  }
+  # ---- FINAL OUTPUT SHAPE ENFORCEMENT ----
+  return_as <- norm$return_as
 
-  if (identical(shape_policy, "stacked_vector")) {
-    if (is.matrix(decomp)) decomp <- c(decomp)
-    if (is.matrix(mx1))    mx1    <- c(mx1)
-    if (is.matrix(mx2))    mx2    <- c(mx2)
-    # sens stays vector
-  } else if (identical(shape_policy, "matrix")) {
-    if (!is.null(norm$deez_dims)) {
-      if (!is.null(dim(decomp))) dim(decomp) <- norm$deez_dims
+  if (return_as == "stacked_vector" || return_as == "vector") {
+    decomp <- as.vector(decomp)
+  } else if (return_as == "matrix") {
+    dim(decomp) <- c(nages, n_causes)
+    if (!is.null(cause_names_out)) colnames(decomp) <- cause_names_out
+  } else if (return_as == "df") {
+    mat <- decomp
+    if (is.null(dim(mat))) dim(mat) <- c(nages, n_causes)
+    decomp <- as.data.frame(mat)
+    if (!is.null(cause_names_out)) names(decomp) <- cause_names_out
+    if (inherits(norm$mx1_orig, "tbl_df") || inherits(norm$mx2_orig, "tbl_df")) {
+      decomp <- tibble::as_tibble(decomp)
     }
-    # sens stays vector
-  } else {
-    decomp <- c(decomp)
-    # sens stays vector
   }
 
   out <- list("mx1" = mx1,
@@ -488,7 +509,8 @@ LEdecomp <- function(mx1,
 }
 
 
-
+# TR this needs to be revised, using info from
+# method_registry; also print actual method used
 #' @export
 print.LEdecomp <- function(x, ...) {
   if (is.null(x) || !"LEdecomp" %in% class(x)) {
@@ -497,25 +519,15 @@ print.LEdecomp <- function(x, ...) {
   if (!is.list(x)) stop("The object is not a list. Use 'LEdecomp()' first.")
 
   is_mat <- is.matrix(x$LEdecomp)
-  m <- x$method
-
-  if (!is_mat) {
-    if (m %in% c("arriaga", "arriaga_sym", "chandrasekaran_ii",
-                 "chandrasekaran_iii", "lopez_ruzicka",
-                 "lopez_ruzicka_sym", "horiuchi", "stepwise", "numerical")) {
-      message(paste("Estimated the", m, "Life-Expectancy decomposition method."))
-    } else {
-      message("Estimated a sensitivity Life-Expectancy decomposition method.")
-    }
-  } else {
-    if (m %in% c("arriaga", "arriaga_sym", "chandrasekaran_ii", "lopez_ruzicka",
-                 "lopez_ruzicka_sym", "horiuchi", "stepwise")) {
-      message(paste("Estimated the", m, "cause-of-death Life-Expectancy decomposition method."))
-    } else {
-      message("Estimated the cause-of-death sensitivity Life-Expectancy decomposition method.")
-    }
+  m      <- x$method
+  cn     <- x$cause_names
+  LEdiff <- x$LE2 - x$LE1
+  message(paste("Executed the", m, "Life-Expectancy decomposition method."))
+  if (!is.null(cn)){
+    message(paste("Reults by age and cause of death."))
   }
-  message(paste("\nThe total difference explained is:", round(sum(x$LEdecomp), 4)))
+  message(paste("\nTotal LE differences:", round(x$LE2,4),"-",round(x$LE1,4),"=",round(LEdiff,4)))
+  message(paste("\nSum of decomposition:", round(sum(x$LEdecomp),4)))
 }
 
 # -----------------------------------------------------------------------------
@@ -687,35 +699,59 @@ normalize_inputs <- function(mx1,
                              age = NULL,
                              n_causes = NULL,
                              prefer_abridged = TRUE) {
-  # --- record original types/dims for later echoing -------------------------
-  deez_dims_orig   <- if (is.matrix(mx1) || is.data.frame(mx1)) dim(mx1) else length(mx1)
-  orig_is_matrix1  <- is.matrix(mx1) || is.data.frame(mx1)
-  orig_is_matrix2  <- is.matrix(mx2) || is.data.frame(mx2)
-  orig_is_vector1  <- is.atomic(mx1) && is.null(dim(mx1))
-  orig_is_vector2  <- is.atomic(mx2) && is.null(dim(mx2))
+
+  # --- record original forms for later echoing ------------------------------
+  mx1_orig <- mx1
+  mx2_orig <- mx2
+
+  orig_form1 <- if (is.data.frame(mx1)) "df"
+  else if (!is.null(dim(mx1)) && length(dim(mx1)) == 2L) "matrix"
+  else "vector"
+
+  orig_form2 <- if (is.data.frame(mx2)) "df"
+  else if (!is.null(dim(mx2)) && length(dim(mx2)) == 2L) "matrix"
+  else "vector"
+
+  # Resolve pair form: df wins over matrix; matrix wins over vector
+  orig_form <- if (orig_form1 == "df" || orig_form2 == "df") {
+    "df"
+  } else if (orig_form1 == "matrix" || orig_form2 == "matrix") {
+    "matrix"
+  } else {
+    "vector"
+  }
+
+  # Backward-compatible shims (old code may still reference these)
+  orig_is_matrix1 <- orig_form1 %in% c("matrix", "df")
+  orig_is_matrix2 <- orig_form2 %in% c("matrix", "df")
+  orig_is_vector1 <- orig_form1 == "vector"
+  orig_is_vector2 <- orig_form2 == "vector"
+
+  # Unambiguous "orig dims" info (dims for matrix/df; length for vector)
+  deez_dims_orig <- if (orig_form1 %in% c("matrix", "df")) dim(mx1_orig) else length(mx1_orig)
 
   # --- explicit 'age' may be repeated (e.g., 0:100,0:100,...); harmonize ----
   if (!is.null(age)) {
     # If mx1 is a vector, we can check coherence with its length
-    x_len <- if (!orig_is_matrix1) length(mx1) else NULL
+    x_len <- if (orig_form1 == "vector") length(mx1_orig) else NULL
     h <- harmonize_repeated_age(age, x_len = x_len)
     age      <- h$age
     n_causes <- n_causes %||% h$n_causes
   }
 
-  # examine age columns before coercion so infer_age can use them ----------
-  rip1 <- strip_age_col(mx1)  # list(x = <mx without age col>, age = <age or NULL>)
+  # examine age columns before coercion so infer_age can use them ------------
+  rip1 <- strip_age_col(mx1)
   rip2 <- strip_age_col(mx2)
 
   # --- infer age (priority: explicit > age col > rownames > names > nrow > heuristics)
   age_inferred <- infer_age(
-    mx_like        = rip1$x,
-    explicit_age   = age,
-    ripped_age     = rip1$age %||% rip2$age,
+    mx_like         = rip1$x,
+    explicit_age    = age,
+    ripped_age      = rip1$age %||% rip2$age,
     prefer_abridged = prefer_abridged
   )
 
-  # --- normalize shapes; allow age override by df age col / rownames ----------
+  # --- normalize shapes; allow age override by df age col / rownames --------
   n1 <- normalize_shape(rip1$x, age_inferred, n_causes, what = "mx1")
   age_final <- n1$age_override %||% age_inferred
   mx1_n     <- n1$x
@@ -724,7 +760,7 @@ normalize_inputs <- function(mx1,
   age_final <- n2$age_override %||% age_final
   mx2_n     <- n2$x
 
-  # --- align benign differences: vector vs 1-col matrix ----------------------
+  # --- align benign differences: vector vs 1-col matrix ---------------------
   if (is.matrix(mx1_n) && !is.matrix(mx2_n)) {
     if (ncol(mx1_n) == 1L && length(mx2_n) == length(age_final)) {
       mx2_n <- matrix(mx2_n, nrow = length(age_final), ncol = 1L)
@@ -735,28 +771,29 @@ normalize_inputs <- function(mx1,
     }
   }
 
-  # --- final compatibility guard ---------------------------------------------
+  # --- final compatibility guard --------------------------------------------
   if (is.matrix(mx1_n) != is.matrix(mx2_n) ||
       (is.matrix(mx1_n) && !identical(dim(mx1_n), dim(mx2_n)))) {
     stop("After normalization, 'mx1' and 'mx2' have incompatible shapes.", call. = FALSE)
   }
 
-  # --- derived metadata ------------------------------------------------------
-  nages         <- length(age_final)
-  n_causes_out  <- if (is.matrix(mx1_n)) { if (ncol(mx1_n) > 1L) ncol(mx1_n) else NULL } else NULL
-  deez_dims     <- if (is.matrix(mx1_n)) dim(mx1_n) else length(mx1_n)
+  # --- derived metadata -----------------------------------------------------
+  nages <- length(age_final)
 
-  # detect if caller passed stacked vectors (vector in  matrix after norm with >1 causes)
-  was_stacked_vec <- orig_is_vector1 && is.matrix(mx1_n) && !is.null(n_causes_out) && n_causes_out > 1L
+  n_causes_out <- if (is.matrix(mx1_n)) {
+    if (ncol(mx1_n) > 1L) ncol(mx1_n) else NULL
+  } else {
+    NULL
+  }
+
+  deez_dims <- if (is.matrix(mx1_n)) dim(mx1_n) else length(mx1_n)
+
+  # detect if caller passed stacked vectors (vector in -> matrix internal with >1 causes)
+  was_stacked_vec <- (orig_form == "vector") &&
+    is.matrix(mx1_n) && !is.null(n_causes_out) && n_causes_out > 1L
 
   # decide how outputs should be returned to echo caller's shape
-  return_as <- if (orig_is_matrix1 || orig_is_matrix2) {
-    "matrix"
-  } else if (was_stacked_vec) {
-    "stacked_vector"
-  } else {
-    "vector"
-  }
+  return_as <- if (was_stacked_vec) "stacked_vector" else orig_form
 
   list(
     mx1 = mx1_n,
@@ -766,8 +803,19 @@ normalize_inputs <- function(mx1,
     n_causes = n_causes_out,
     deez_dims = deez_dims,
     deez_dims_orig = deez_dims_orig,
+
     was_stacked_vec = was_stacked_vec,
-    return_as = return_as
+    orig_form = orig_form,
+    return_as = return_as,
+
+    mx1_orig = mx1_orig,
+    mx2_orig = mx2_orig,
+
+    # optional shims for any remaining old callers
+    orig_is_matrix1 = orig_is_matrix1,
+    orig_is_matrix2 = orig_is_matrix2,
+    orig_is_vector1 = orig_is_vector1,
+    orig_is_vector2 = orig_is_vector2
   )
 }
 
